@@ -288,7 +288,3 @@ This project is designed to:
 * demonstrate understanding of NLP pipelines
 * compare classical vs transformer models
 * showcase model deployment using Streamlit
-
-```
-
----
