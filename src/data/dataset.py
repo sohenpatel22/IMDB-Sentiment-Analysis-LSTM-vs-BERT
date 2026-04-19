@@ -15,18 +15,32 @@ class LSTMDataset(Dataset):
 
 
 class MovieReviewDataset(Dataset):
-    def __init__(self, encodings, labels):
-        self.encodings = encodings
-        self.labels = torch.tensor(labels, dtype=torch.long)
+    def __init__(self, reviews, sentiments, tokenizer, max_len):
+        self.reviews = list(reviews)
+        self.sentiments = list(sentiments)
+        self.tokenizer = tokenizer
+        self.max_len = max_len
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.reviews)
 
     def __getitem__(self, idx):
+        review = str(self.reviews[idx])
+        label = 1 if self.sentiments[idx] == "positive" else 0
+
+        encoding = self.tokenizer(
+            review,
+            add_special_tokens=True,
+            max_length=self.max_len,
+            padding="max_length",
+            truncation=True,
+            return_attention_mask=True,
+            return_token_type_ids=False,
+            return_tensors="pt"
+        )
+
         return {
-            "input_ids": self.encodings["input_ids"][idx],
-            "attention_mask": self.encodings["attention_mask"][idx],
-            "targets": self.labels[idx]
+            "input_ids": encoding["input_ids"].squeeze(0),
+            "attention_mask": encoding["attention_mask"].squeeze(0),
+            "targets": torch.tensor(label, dtype=torch.long)
         }
-    
-    
