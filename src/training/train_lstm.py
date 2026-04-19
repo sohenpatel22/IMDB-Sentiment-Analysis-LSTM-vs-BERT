@@ -10,14 +10,14 @@ from src.utils.checkpoint import save_checkpoint, load_checkpoint
 from src.utils.plotting import plot_curves
 from src.data.preprocess import load_data, prepare_lstm_data
 from src.data.dataset import LSTMDataset
-from src.models.lstm_model import SentimentRNN
+from src.models.lstm_model import LSTMSentimentClassifier
 from src.training.evaluate import evaluate_lstm
 
 
 def train_one_epoch(model, loader, optimizer, criterion, device):
     model.train()
 
-    total_loss = 0
+    total_loss = 0.0
     correct = 0
     total = 0
 
@@ -36,9 +36,9 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
         total_loss += loss.item()
 
         probs = torch.sigmoid(outputs)
-        preds = (probs >= 0.5).int()
+        preds = (probs >= 0.5).long()
 
-        correct += (preds == labels.int()).sum().item()
+        correct += (preds == labels.long()).sum().item()
         total += labels.size(0)
 
     avg_loss = total_loss / len(loader)
@@ -58,23 +58,35 @@ def main():
     os.makedirs("checkpoints", exist_ok=True)
 
     df = load_data("data/raw/IMDB Dataset.csv")
-    data_dict, stoi = prepare_lstm_data(df, vocab_size=5000, seq_length=500)
+
+    data_dict, stoi = prepare_lstm_data(
+        df=df,
+        vocab_size=5000,
+        seq_length=500,
+        random_state=42,
+        remove_stopwords=False
+    )
 
     train_dataset = LSTMDataset(data_dict["X_train"], data_dict["y_train"])
     val_dataset = LSTMDataset(data_dict["X_val"], data_dict["y_val"])
     test_dataset = LSTMDataset(data_dict["X_test"], data_dict["y_test"])
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-    model = SentimentRNN(vocab_size=len(stoi), embedding_dim=128, hidden_dim=128).to(device)
+    model = LSTMSentimentClassifier(
+        vocab_size=len(stoi),
+        embedding_dim=128,
+        hidden_dim=256,
+        dropout_rate=0.3
+    ).to(device)
 
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    num_epochs = 5
-    best_val_acc = 0
+    num_epochs = 4
+    best_val_f1 = 0.0
 
     history = {
         "train_loss": [],
@@ -85,31 +97,57 @@ def main():
 
     for epoch in range(num_epochs):
         train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device)
-        val_metrics = evaluate_lstm(model, val_loader, device)
+        val_metrics = evaluate_lstm(model, val_loader, device, criterion=criterion)
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_metrics["loss"])
         history["train_acc"].append(train_acc)
         history["val_acc"].append(val_metrics["accuracy"])
 
-        print(f"Epoch {epoch+1}/{num_epochs}")
+        print(f"Epoch {epoch + 1}/{num_epochs}")
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
-        print(f"Val Loss: {val_metrics['loss']:.4f}, Val Acc: {val_metrics['accuracy']:.4f}")
-        print("-" * 50)
+        print(
+            f"Val Loss: {val_metrics['loss']:.4f}, "
+            f"Val Acc: {val_metrics['accuracy']:.4f}, "
+            f"Val Precision: {val_metrics['precision']:.4f}, "
+            f"Val Recall: {val_metrics['recall']:.4f}, "
+            f"Val F1: {val_metrics['f1']:.4f}"
+        )
+        print("-" * 60)
 
-        save_checkpoint("checkpoints/lstm_last.pt", model, optimizer, epoch, val_metrics["accuracy"])
+        save_checkpoint(
+            "checkpoints/lstm_last.pt",
+            model,
+            optimizer=optimizer,
+            epoch=epoch,
+            best_val_acc=val_metrics["f1"],
+            history=history
+        )
 
-        if val_metrics["accuracy"] > best_val_acc:
-            best_val_acc = val_metrics["accuracy"]
-            save_checkpoint("checkpoints/lstm_best.pt", model, optimizer, epoch, best_val_acc)
-            print("Best model saved.")
+        if val_metrics["f1"] > best_val_f1:
+            best_val_f1 = val_metrics["f1"]
+            save_checkpoint(
+                "checkpoints/lstm_best.pt",
+                model,
+                optimizer=optimizer,
+                epoch=epoch,
+                best_val_acc=best_val_f1,
+                history=history
+            )
+            print("Best LSTM model saved.")
 
     plot_curves(history, save_prefix="outputs/figures/lstm")
 
-    best_model = SentimentRNN(vocab_size=len(stoi), embedding_dim=128, hidden_dim=128).to(device)
+    best_model = LSTMSentimentClassifier(
+        vocab_size=len(stoi),
+        embedding_dim=128,
+        hidden_dim=256,
+        dropout_rate=0.3
+    ).to(device)
+
     load_checkpoint("checkpoints/lstm_best.pt", best_model, device=device)
 
-    test_metrics = evaluate_lstm(best_model, test_loader, device)
+    test_metrics = evaluate_lstm(best_model, test_loader, device, criterion=criterion)
     print("Test Metrics:", test_metrics)
 
     with open("outputs/results/lstm_metrics.json", "w") as f:
