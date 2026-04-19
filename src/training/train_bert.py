@@ -61,7 +61,7 @@ def main():
     os.makedirs("outputs/results", exist_ok=True)
     os.makedirs("checkpoints", exist_ok=True)
 
-    df = load_data("data/raw/IMDB Dataset.csv")
+    df = load_data("data/IMDB Dataset.csv")
 
     X = df["review"].astype(str).tolist()
     y = df["sentiment"].astype(str).tolist()
