@@ -1,7 +1,11 @@
+import os
 import torch
 
 
-def save_checkpoint(path, model, optimizer=None, epoch=None, best_val_acc=None):
+def save_checkpoint(path, model, optimizer=None, epoch=None, best_val_acc=None, history=None):
+    if os.path.dirname(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
     checkpoint = {
         "model_state_dict": model.state_dict()
     }
@@ -14,6 +18,9 @@ def save_checkpoint(path, model, optimizer=None, epoch=None, best_val_acc=None):
 
     if best_val_acc is not None:
         checkpoint["best_val_acc"] = best_val_acc
+
+    if history is not None:
+        checkpoint["history"] = history
 
     torch.save(checkpoint, path)
 
