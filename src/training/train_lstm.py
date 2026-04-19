@@ -57,7 +57,7 @@ def main():
     os.makedirs("outputs/results", exist_ok=True)
     os.makedirs("checkpoints", exist_ok=True)
 
-    df = load_data("data/raw/IMDB Dataset.csv")
+    df = load_data("data/IMDB Dataset.csv")
 
     data_dict, stoi = prepare_lstm_data(
         df=df,
@@ -152,6 +152,9 @@ def main():
 
     with open("outputs/results/lstm_metrics.json", "w") as f:
         json.dump(test_metrics, f, indent=4)
+
+    with open("checkpoints/stoi.json", "w") as f:
+        json.dump(stoi, f)
 
 
 if __name__ == "__main__":
