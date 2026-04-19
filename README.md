@@ -27,6 +27,8 @@ Then open:
 http://localhost:8501
 ```
 
+*(Note: Models must be trained first before running the demo. Run the training scripts to generate checkpoints in the `checkpoints/` folder.)*
+
 Features:
 
 * Input custom movie review
